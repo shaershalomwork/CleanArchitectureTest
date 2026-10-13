@@ -1,0 +1,10 @@
+**/bin
+**/obj
+.git
+.vs
+.vscode
+.env
+.local
+docker
+scripts
+README.md

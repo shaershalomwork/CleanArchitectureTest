@@ -12,6 +12,63 @@ A small .NET 10 Minimal API with Keycloak JWT authentication and Scalar.
 
 ## Run
 
+### Local Docker environment (Windows)
+
+This project includes a complete local environment: the API, Keycloak 26.8.0,
+the `fileshub` realm, the public Scalar client with S256 PKCE, and a demo user
+in `/engineering`. Requirements: Docker Desktop using Linux containers and
+the .NET 10 SDK (for exporting the development HTTPS certificate).
+
+From the project directory:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-docker.ps1
+```
+
+Open [https://localhost:7001/scalar/v1](https://localhost:7001/scalar/v1),
+select **Keycloak**, authorize, and sign in as `demo` with password
+`Demo-local-2026!`. Leave the client secret empty. Then try `/api/me` and
+`/api/data` in Scalar.
+
+The [Keycloak admin console](http://localhost:8080/admin) uses username
+`admin`; its generated password is `KEYCLOAK_ADMIN_PASSWORD` in the local
+`.env` file. `.env` and the exported certificate under `.local/` are ignored
+by Git and excluded from the Docker build context. Both published ports are
+bound to `127.0.0.1`. These demo credentials and Keycloak development mode
+are for local development only.
+
+The API shares Keycloak's Docker network namespace so
+`http://localhost:8080/realms/fileshub` is reachable from both the browser
+and the API without changing the JWT issuer or loosening token validation.
+The API uses HTTPS with the machine's ASP.NET development certificate.
+Existing application code and Test/Production settings are unchanged.
+
+```powershell
+docker compose ps
+docker compose logs --tail 100
+python scripts/verify-docker.py
+docker compose stop
+docker compose start
+```
+
+`verify-docker.py` requires Python 3 and uses only its standard library. It
+checks HTTPS, docs, anonymous rejection, the demo user's authorization-code
+PKCE login, profile/group claims, API data, and rejection of ID tokens and
+tampered signatures. It does not print tokens or passwords.
+
+Keycloak data is persisted in the `keycloak-data` Docker volume. Realm import
+initializes a new realm; editing the JSON does not overwrite an existing one.
+Use the admin console for subsequent changes. `docker compose down` removes
+containers while retaining user data; `docker compose down --volumes` also
+deletes the local realm, users, and settings. Rerun the start script after
+changing application code to rebuild the API image. Stop any host API using
+port 7001 before starting this environment.
+
+Configuration follows the official [Keycloak container guide](https://www.keycloak.org/server/containers)
+and [Microsoft Docker Compose HTTPS guide](https://learn.microsoft.com/en-us/aspnet/core/security/docker-compose-https?view=aspnetcore-10.0).
+
+### Run directly with the .NET SDK
+
 Install the .NET 10 SDK and configure a Keycloak client as described below. The supplied authority URLs are **examples**, not a provisioned Keycloak server.
 
 ```powershell
@@ -40,7 +97,9 @@ Use an existing realm (for example `fileshub`) and create a separate OpenID Conn
 
 Scalar uses its current page URL as the callback, so open it at `/scalar/v1`. Register each deployed application's exact callback and origin as well, such as `https://api-test.example.com/scalar/v1` and `https://api-test.example.com`. Include any deployment path prefix. Use each environment's own realm/client where appropriate.
 
-Attach the standard `profile` and `email` client scopes. Scalar requests `openid profile email`.
+Attach the standard `basic`, `profile`, and `email` default client scopes.
+`basic` supplies the `sub` user identifier in current Keycloak versions.
+Scalar requests `openid profile email`.
 
 In **Clients > keycloak-test-scalar > Client scopes > keycloak-test-scalar-dedicated > Mappers**, add these two protocol mappers:
 
